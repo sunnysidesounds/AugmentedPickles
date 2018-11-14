@@ -9,12 +9,18 @@
 import UIKit
 import SceneKit
 import ARKit
+import CoreMotion
 
 class ViewController: UIViewController, ARSCNViewDelegate {
 
+    @IBOutlet var statsItem: UIBarButtonItem!
+    @IBOutlet var pickleBlockerView: UIView!
+    //@IBOutlet var pickleBlocker: UILabel!
     @IBOutlet var sceneView: ARSCNView!
     @IBOutlet var statusLabel: UILabel!
     var assetCount: Int = 0
+    var motionTimer: Timer!
+    let motionManager = CMMotionManager()
     
     var planes = [UUID: VirtualPlane]() {
         didSet {
@@ -45,7 +51,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.delegate = self
         
         // Show statistics such as fps and timing information
-        sceneView.showsStatistics = true
+        sceneView.showsStatistics = false
         
         // configure settings and debug options for scene
         //self.sceneView.debugOptions = [ARSCNDebugOptions.showFeaturePoints, SCNDebugOptions.showConstraints, SCNDebugOptions.showLightExtents, ARSCNDebugOptions.showWorldOrigin]
@@ -59,10 +65,67 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.scene = scene
         
         // round corners of status label
-        statusLabel.layer.cornerRadius = 20.0
+        //statusLabel.layer.cornerRadius = 20.0
         statusLabel.layer.masksToBounds = true
         
         self.initializeNode()
+        
+        
+        motionTimer = Timer.scheduledTimer(timeInterval: 3.0, target: self, selector: #selector(ViewController.getDeviceDegreesOfArc), userInfo: nil, repeats: true)
+
+        
+    }
+    
+    
+    @objc func getDeviceDegreesOfArc(){
+                if motionManager.isDeviceMotionAvailable {
+            
+                    motionManager.deviceMotionUpdateInterval = 0.1
+            
+                    motionManager.startDeviceMotionUpdates(to: OperationQueue()) { [weak self] (motion, error) -> Void in
+                
+                    if let attitude = motion?.attitude {
+                        let degrees = attitude.pitch * 180 / Double.pi
+                        var arcDegree = (degrees / 100)
+                        
+                        //print("\(degrees) degrees")
+                        DispatchQueue.main.async{
+                            // Update UI
+                            self?.statusLabel.text = "Currently \(Int(degrees)) degrees of arc"
+                            if degrees > 60.0 {
+                                
+                                UIView.animate(withDuration: 0.5, delay: 0.0, options: UIView.AnimationOptions.curveEaseOut, animations: {
+                                    arcDegree = arcDegree + 0.12
+                                    
+                                    let rNumber: Int = self!.randomNumber()
+                                    
+                                    print("random int : \(rNumber)")
+                                    
+                                     let image: UIImage = UIImage(named: "pickleman")!
+                                    
+                                    
+                                    let imageView = UIImageView(frame: CGRect(x: 16, y: 25, width: 343, height: 454))
+                                    imageView.image = image
+                                    self?.pickleBlockerView.addSubview(imageView)
+                                    
+                                    self?.pickleBlockerView.alpha = CGFloat(arcDegree)
+                                    self?.statusLabel.textColor = .red
+                                }, completion: nil)
+                            } else {
+                                 self?.pickleBlockerView.alpha = 0
+                                self?.statusLabel.textColor = .white
+                            }
+                        }
+                    }
+            }
+            print("Device motion started")
+        }
+        else {
+            print("Device motion unavailable")
+        }
+        
+        
+        
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -178,14 +241,17 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             if let anotherMugYesPlease = graphicsNode?.clone() {
                 anotherMugYesPlease.position = SCNVector3Make(firstHit.worldTransform.columns.3.x, firstHit.worldTransform.columns.3.y, firstHit.worldTransform.columns.3.z)
                 self.assetCount = self.assetCount + 1
-                
-                self.statusLabel.text = "Current count is \(self.assetCount)"
-                
+                self.statsItem.title = "\(self.assetCount) items"
                 sceneView.scene.rootNode.addChildNode(anotherMugYesPlease)
             }
         }
     }
+    
+    func randomNumber<T : SignedInteger>(inRange range: ClosedRange<T> = 1...4) -> T {
+        let length = Int64(range.upperBound - range.lowerBound + 1)
+        let value = Int64(arc4random()) % length + Int64(range.lowerBound)
+        return T(value)
+    }
 
 
 }
-
